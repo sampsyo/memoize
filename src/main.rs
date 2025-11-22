@@ -1,3 +1,4 @@
+use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 
@@ -46,7 +47,7 @@ impl Context {
         Some(self.dest_dir.join(format!("{}.html", base)))
     }
 
-    fn render_note(&self, src_path: &Utf8Path, dest_path: &Utf8Path) -> std::io::Result<()> {
+    fn render_note(&self, src_path: &Utf8Path, dest_path: &Utf8Path) -> Result<()> {
         let source = fs::read_to_string(src_path)?;
         let parser = pulldown_cmark::Parser::new(&source);
         let body = {
@@ -57,19 +58,18 @@ impl Context {
 
         let out_file = fs::File::create(dest_path)?;
 
-        let tmpl = self.tmpls.get_template(NOTE_TEMPLATE).unwrap();
+        let tmpl = self.tmpls.get_template(NOTE_TEMPLATE)?;
         tmpl.render_to_write(
             minijinja::context! {
                 body => body,
             },
             out_file,
-        )
-        .unwrap();
+        )?;
 
         Ok(())
     }
 
-    fn render_all(&self) -> std::io::Result<()> {
+    fn render_all(&self) -> Result<()> {
         fs::create_dir_all(&self.dest_dir)?;
         // TODO parallelize
         for entry in self.src_dir.read_dir_utf8()? {
