@@ -16,16 +16,13 @@ impl Context {
     fn new(src_dir: &str, dest_dir: &str) -> Self {
         let mut env = minijinja::Environment::new();
 
-        // In release mode, embed template files.
-        #[cfg(not(debug_assertions))]
-        {
-            for (name, source) in TEMPLATES.contents() {
-                env.add_template(name, source)
-                    .expect("embedded template must be valid Jinja code");
-            }
+        // Register embedded templates, which are available in release mode.
+        for (name, source) in TEMPLATES.contents() {
+            env.add_template(name, source)
+                .expect("embedded template must be valid Jinja code");
         }
 
-        // In debug mode, load directly from the filesystem.
+        // In debug mode only, load templates directly from the filesystem.
         #[cfg(debug_assertions)]
         env.set_loader(|name| {
             match TEMPLATES.read(name) {
