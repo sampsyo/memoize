@@ -1,20 +1,57 @@
 use std::fs;
 use std::path::Path;
 
-pub struct Assets<E> {
+pub trait FileList {
+    fn get(&self, name: &str) -> Option<&'static str>;
+    fn contents(&self) -> impl Iterator<Item = (&'static str, &'static str)>;
+    fn names(&self) -> impl Iterator<Item = &'static str>;
+}
+
+type NameList = &'static [&'static str];
+type ContentList = &'static [(&'static str, &'static str)];
+
+impl FileList for NameList {
+    fn get(&self, _name: &str) -> Option<&'static str> {
+        None
+    }
+
+    fn contents(&self) -> impl Iterator<Item = (&'static str, &'static str)> {
+        std::iter::empty()
+    }
+
+    fn names(&self) -> impl Iterator<Item = &'static str> {
+        self.iter().copied()
+    }
+}
+
+impl FileList for ContentList {
+    fn get(&self, name: &str) -> Option<&'static str> {
+        match self.iter().find(|(n, _)| *n == name) {
+            Some((_, c)) => Some(c),
+            None => None,
+        }
+    }
+
+    fn contents(&self) -> impl Iterator<Item = (&'static str, &'static str)> {
+        self.iter().copied()
+    }
+
+    fn names(&self) -> impl Iterator<Item = &'static str> {
+        self.iter().map(|(n, _)| *n)
+    }
+}
+
+pub struct Assets<F: FileList> {
     /// The directory path for this set of assets.
     dir: &'static str,
 
-    /// The names of the available asset files.
-    names: &'static [&'static str],
-
-    /// The contents of the files listed in `names`, if available.
-    embedded: E,
+    /// The names and (possibly) contents of the assets.
+    files: F,
 }
 
-impl<E> Assets<E> {
+impl<F: FileList> Assets<F> {
     pub fn contains(&self, name: &str) -> bool {
-        self.names.contains(&name)
+        self.files.names().any(|n| n == name)
     }
 
     pub fn load(&self, name: &str) -> std::io::Result<Option<String>> {
@@ -25,64 +62,44 @@ impl<E> Assets<E> {
             Ok(None)
         }
     }
-}
-
-pub type EmbeddedAssets = Assets<&'static [&'static str]>;
-pub type FileAssets = Assets<()>;
-
-impl EmbeddedAssets {
-    pub const fn new(
-        dir: &'static str,
-        names: &'static [&'static str],
-        contents: &'static [&'static str],
-    ) -> Self {
-        if contents.len() != names.len() {
-            panic!("contents should match filenames");
-        }
-        Self {
-            dir,
-            names,
-            embedded: contents,
-        }
-    }
 
     pub fn get_embedded(&self, name: &str) -> Option<&'static str> {
-        assert_eq!(self.embedded.len(), self.names.len());
-
-        // Look up the contents associated with the name.
-        match self.names.iter().position(|n| *n == name) {
-            Some(idx) => Some(self.embedded[idx]),
-            None => None,
-        }
+        self.files.get(name)
     }
 
     pub fn embedded_files(&self) -> impl Iterator<Item = (&'static str, &'static str)> {
-        std::iter::zip(self.names, self.embedded).map(|(n, e)| (*n, *e))
+        self.files.contents()
     }
 }
 
-impl FileAssets {
-    pub const fn new(dir: &'static str, names: &'static [&'static str]) -> Self {
+impl Assets<ContentList> {
+    pub const fn new(dir: &'static str, contents: ContentList) -> Self {
         Self {
             dir,
-            names,
-            embedded: (),
+            files: contents,
         }
     }
+}
 
-    pub fn get_embedded(&self, name: &str) -> Option<&'static str> {
-        None
+impl Assets<NameList> {
+    pub const fn new(dir: &'static str, names: NameList) -> Self {
+        Self { dir, files: names }
     }
 }
+
+pub type EmbeddedAssets = Assets<ContentList>;
+pub type FileAssets = Assets<NameList>;
 
 #[macro_export]
 macro_rules! embed_assets {
     ($constname:ident, $dirname:literal, $($filename:literal),*) => {
         const $constname: $crate::assets::EmbeddedAssets = $crate::assets::EmbeddedAssets::new(
             concat!(env!("CARGO_MANIFEST_DIR"), "/", $dirname),
-            &[$( $filename, )*],
             &[$(
-                include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $dirname, "/", $filename)),
+                (
+                    $filename,
+                    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $dirname, "/", $filename)),
+                ),
             )*],
         );
     };
