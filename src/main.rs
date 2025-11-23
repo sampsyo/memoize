@@ -86,13 +86,15 @@ impl Context {
 }
 
 fn render_markdown(source: &str) -> String {
-    let mut options = pulldown_cmark::Options::empty();
-    options.insert(pulldown_cmark::Options::ENABLE_HEADING_ATTRIBUTES);
-    options.insert(pulldown_cmark::Options::ENABLE_SMART_PUNCTUATION);
-    let parser = pulldown_cmark::Parser::new_ext(&source, options);
+    use pulldown_cmark::{Options, Parser, html};
+
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
+    options.insert(Options::ENABLE_SMART_PUNCTUATION);
+    let parser = Parser::new_ext(&source, options);
 
     let mut buf = String::new();
-    pulldown_cmark::html::push_html(&mut buf, parser);
+    html::push_html(&mut buf, parser);
     buf
 }
 
