@@ -93,6 +93,9 @@ fn render_markdown(source: &str) -> String {
     options.insert(Options::ENABLE_SMART_PUNCTUATION);
     let parser = Parser::new_ext(&source, options);
 
+    // TODO generate slugified anchors, produce table of contents
+    // TODO gather top-level heading as title
+
     let mut buf = String::new();
     html::push_html(&mut buf, parser);
     buf
