@@ -89,7 +89,9 @@ impl Context {
         }
     }
 
-    fn render_all(&self) -> Result<()> {
+    fn render_site(&self) -> Result<()> {
+        fs::remove_dir_all(&self.dest_dir)?;
+
         // TODO parallelize rendering work
         for entry in WalkDir::new(&self.src_dir)
             .into_iter()
@@ -153,5 +155,5 @@ fn hard_link_or_copy(from: &Path, to: &Path) -> std::io::Result<Option<u64>> {
 fn main() {
     let src_dir = std::env::args().nth(1).unwrap();
     let ctx = Context::new(&src_dir, "_public");
-    ctx.render_all().unwrap();
+    ctx.render_site().unwrap();
 }
