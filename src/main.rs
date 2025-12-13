@@ -91,14 +91,11 @@ impl Context {
 
     fn render_all(&self) -> Result<()> {
         // TODO parallelize rendering work
-        for entry in WalkDir::new(&self.src_dir) {
+        for entry in WalkDir::new(&self.src_dir)
+            .into_iter()
+            .filter_entry(|e| !Self::skip_file(e.file_name()))
+        {
             let entry = entry?;
-
-            // Skip excluded files & directories.
-            if Self::skip_file(entry.file_name()) {
-                continue;
-            }
-
             if entry.file_type().is_dir() {
                 // Create mirrored directories.
                 fs::create_dir_all(self.mirrored_path(entry.path()))?;
