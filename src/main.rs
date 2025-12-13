@@ -1,7 +1,6 @@
 pub mod assets;
 
 use anyhow::Result;
-use camino::Utf8PathBuf;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,8 +9,8 @@ use walkdir::WalkDir;
 assets!(TEMPLATES, "templates", ["note.html"]);
 
 struct Context {
-    src_dir: Utf8PathBuf,
-    dest_dir: Utf8PathBuf,
+    src_dir: PathBuf,
+    dest_dir: PathBuf,
     tmpls: minijinja::Environment<'static>,
 }
 
@@ -73,7 +72,7 @@ impl Context {
         let rel_path = src
             .strip_prefix(&self.src_dir)
             .expect("path is within root directory");
-        self.dest_dir.join_os(rel_path)
+        self.dest_dir.join(rel_path)
     }
 
     /// If `src` is the path to a Markdown note file, return its HTML

@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1"
-camino = "1"
 minijinja = { version = "2.12", features = ["loader"] }
 pulldown-cmark = "0.13.0"
 walkdir = "2"
