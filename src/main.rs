@@ -113,7 +113,7 @@ impl Context {
                         }
                     }
                 } else {
-                    std::fs::copy(src_path, self.mirrored_path(src_path))?;
+                    hard_link_or_copy(src_path, &self.mirrored_path(src_path))?;
                 }
             }
         }
@@ -136,6 +136,19 @@ fn render_markdown(source: &str) -> String {
     let mut buf = String::new();
     html::push_html(&mut buf, parser);
     buf
+}
+
+/// Try to hard-link `from` at `to`, falling back to a copy if the link fails
+/// (e.g., the two paths are on different filesystems). This always removes the
+/// current file at `to`.
+fn hard_link_or_copy(from: &Path, to: &Path) -> std::io::Result<Option<u64>> {
+    if to.exists() {
+        fs::remove_file(to)?;
+    }
+    match fs::hard_link(from, to) {
+        Ok(_) => Ok(None),
+        Err(_) => fs::copy(from, to).map(Some),
+    }
 }
 
 fn main() {
