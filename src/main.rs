@@ -1,8 +1,10 @@
 pub mod assets;
 
 use anyhow::Result;
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8PathBuf;
+use std::ffi::OsStr;
 use std::fs;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 assets!(TEMPLATES, "templates", ["note.html"]);
@@ -39,21 +41,7 @@ impl Context {
         }
     }
 
-    /**
-     * If this is a note filename, return its destination name. Otherwise, return None.
-     */
-    fn note_dest(&self, name: &str) -> Option<Utf8PathBuf> {
-        if name.starts_with("_") || name.starts_with(".") {
-            return None;
-        }
-        let (base, ext) = name.split_once(".")?;
-        if ext != "md" {
-            return None;
-        }
-        Some(self.dest_dir.join(format!("{base}.html")))
-    }
-
-    fn render_note(&self, src_path: &Utf8Path, dest_path: &Utf8Path) -> Result<()> {
+    fn render_note(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
         let source = fs::read_to_string(src_path)?;
         let body = render_markdown(&source);
 
@@ -70,34 +58,62 @@ impl Context {
         Ok(())
     }
 
+    /// Should we skip a given file from the rendering process? We skip hidden
+    /// files (prefixed with .) and ones starting with _, which are special.
+    fn skip_file(name: &OsStr) -> bool {
+        let bytes = name.as_encoded_bytes();
+        bytes.starts_with(b".") || bytes.starts_with(b"_")
+    }
+
     /// Given a path that is within `self.src_dir`, produce a mirrored path that
     /// is at the same place is within `self.dest_dir`.
     ///
     /// Panics if `src` is not within `self.src_dir`.
-    fn mirrored_path(&self, src: &std::path::Path) -> std::path::PathBuf {
+    fn mirrored_path(&self, src: &Path) -> PathBuf {
         let rel_path = src
             .strip_prefix(&self.src_dir)
             .expect("path is within root directory");
         self.dest_dir.join_os(rel_path)
     }
 
+    /// If `src` is the path to a Markdown note file, return its HTML
+    /// destination path. Otherwise, return None.
+    fn note_dest(&self, src: &Path) -> Option<PathBuf> {
+        match src.extension() {
+            Some(ext) => {
+                if ext == "md" {
+                    let mut mirrored = self.mirrored_path(src);
+                    mirrored.set_extension("html");
+                    Some(mirrored)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        }
+    }
+
     fn render_all(&self) -> Result<()> {
         // TODO parallelize rendering work
         for entry in WalkDir::new(&self.src_dir) {
             let entry = entry?;
+
+            // Skip excluded files & directories.
+            if Self::skip_file(entry.file_name()) {
+                continue;
+            }
+
             if entry.file_type().is_dir() {
                 // Create mirrored directories.
                 fs::create_dir_all(self.mirrored_path(entry.path()))?;
             } else if entry.file_type().is_file() {
-                let file_name = entry.file_name().to_str().expect("filenames must be UTF-8");
-
                 // Is this a Markdown note? Render it.
-                if let Some(dest_path) = self.note_dest(file_name) {
-                    let src_path =
-                        Utf8Path::from_path(entry.path()).expect("filenames must be UTF-8");
-                    match self.render_note(src_path, &dest_path) {
+                if let Some(dest_path) = self.note_dest(entry.path()) {
+                    match self.render_note(entry.path(), &dest_path) {
                         Ok(_) => (),
-                        Err(e) => eprintln!("error rendering note {}: {}", file_name, e),
+                        Err(e) => {
+                            eprintln!("error rendering note {}: {}", entry.path().display(), e)
+                        }
                     }
                 }
             }
