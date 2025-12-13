@@ -3,6 +3,7 @@ pub mod assets;
 use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
+use walkdir::WalkDir;
 
 assets!(TEMPLATES, "templates", ["note.html"]);
 
@@ -69,18 +70,39 @@ impl Context {
         Ok(())
     }
 
+    /// Given a path that is within `self.src_dir`, produce a mirrored path that
+    /// is at the same place is within `self.dest_dir`.
+    ///
+    /// Panics if `src` is not within `self.src_dir`.
+    fn mirrored_path(&self, src: &std::path::Path) -> std::path::PathBuf {
+        let rel_path = src
+            .strip_prefix(&self.src_dir)
+            .expect("path is within root directory");
+        self.dest_dir.join_os(rel_path)
+    }
+
     fn render_all(&self) -> Result<()> {
-        fs::create_dir_all(&self.dest_dir)?;
-        // TODO parallelize
-        for entry in self.src_dir.read_dir_utf8()? {
+        // TODO parallelize rendering work
+        for entry in WalkDir::new(&self.src_dir) {
             let entry = entry?;
-            if let Some(dest_path) = self.note_dest(entry.file_name()) {
-                match self.render_note(entry.path(), &dest_path) {
-                    Ok(_) => (),
-                    Err(e) => eprintln!("error rendering note {}: {}", entry.file_name(), e),
+            if entry.file_type().is_dir() {
+                // Create mirrored directories.
+                fs::create_dir_all(self.mirrored_path(entry.path()))?;
+            } else if entry.file_type().is_file() {
+                let file_name = entry.file_name().to_str().expect("filenames must be UTF-8");
+
+                // Is this a Markdown note? Render it.
+                if let Some(dest_path) = self.note_dest(file_name) {
+                    let src_path =
+                        Utf8Path::from_path(entry.path()).expect("filenames must be UTF-8");
+                    match self.render_note(src_path, &dest_path) {
+                        Ok(_) => (),
+                        Err(e) => eprintln!("error rendering note {}: {}", file_name, e),
+                    }
                 }
             }
         }
+
         Ok(())
     }
 }
@@ -102,6 +124,7 @@ fn render_markdown(source: &str) -> String {
 }
 
 fn main() {
-    let ctx = Context::new(".", "_public");
+    let src_dir = std::env::args().into_iter().nth(1).unwrap();
+    let ctx = Context::new(&src_dir, "_public");
     ctx.render_all().unwrap();
 }

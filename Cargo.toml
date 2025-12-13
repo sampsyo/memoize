@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.100"
-camino = "1.2.1"
-minijinja = { version = "2.12.0", features = ["loader"] }
+anyhow = "1"
+camino = "1"
+minijinja = { version = "2.12", features = ["loader"] }
 pulldown-cmark = "0.13.0"
+walkdir = "2"
