@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-assets!(TEMPLATES, "templates", ["note.html"]);
+assets!(TEMPLATES, "templates", ["note.html", "style.css"]);
 
 struct Context {
     src_dir: PathBuf,
