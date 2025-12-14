@@ -42,16 +42,25 @@ impl Context {
     }
 
     fn render_note(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
+        // Render the note body.
         let source = fs::read_to_string(src_path)?;
         let (body, toc_entries) = markdown::render(&source);
+
+        // Get the table of contents ready for rendering.
         let toc: Vec<_> = toc_entries
             .into_iter()
-            .map(|e| (e.level as u8, e.id, e.title))
+            .map(|e| {
+                minijinja::context! {
+                    level => e.level as u8,
+                    id => e.id,
+                    title => e.title,
+                }
+            })
             .collect();
 
-        let out_file = fs::File::create(dest_path)?;
-
+        // Render the template.
         let tmpl = self.tmpls.get_template("note.html")?;
+        let out_file = fs::File::create(dest_path)?;
         tmpl.render_to_write(
             minijinja::context! {
                 body => body,
