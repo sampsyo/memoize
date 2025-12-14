@@ -1,9 +1,9 @@
-use pulldown_cmark::{CowStr, Event, HeadingLevel, Tag, TagEnd};
+use pulldown_cmark::{Event, HeadingLevel, Tag, TagEnd};
 
 #[derive(Debug, PartialEq, Eq)]
-struct TocEntry<'a> {
+struct TocEntry {
     level: HeadingLevel,
-    id: Option<CowStr<'a>>,
+    id: Option<String>,
     title: String,
 }
 
@@ -12,7 +12,7 @@ where
     I: Iterator<Item = Event<'a>>,
 {
     iter: I,
-    entries: Vec<TocEntry<'a>>,
+    entries: Vec<TocEntry>,
     in_heading: bool,
 }
 
@@ -47,7 +47,7 @@ where
                 // Start building a new TOC entry for this heading.
                 self.entries.push(TocEntry {
                     level: *level,
-                    id: id.clone(),
+                    id: id.as_ref().map(|s| s.to_string()),
                     title: String::new(),
                 });
                 self.in_heading = true;
@@ -77,7 +77,7 @@ mod tests {
     use super::*;
     use pulldown_cmark::{Options, Parser};
 
-    fn get_toc<'a>(source: &'a str) -> Vec<TocEntry<'a>> {
+    fn get_toc<'a>(source: &'a str) -> Vec<TocEntry> {
         let mut options = Options::empty();
         options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
         let parser = Parser::new_ext(source, options);
@@ -109,7 +109,7 @@ mod tests {
             get_toc("# hi {#x}"),
             &[TocEntry {
                 level: HeadingLevel::H1,
-                id: Some(CowStr::from("x")),
+                id: Some("x".to_string()),
                 title: "hi".to_string(),
             }]
         );
@@ -122,12 +122,12 @@ mod tests {
             &[
                 TocEntry {
                     level: HeadingLevel::H1,
-                    id: Some(CowStr::from("x")),
+                    id: Some("x".to_string()),
                     title: "hi".to_string(),
                 },
                 TocEntry {
                     level: HeadingLevel::H2,
-                    id: Some(CowStr::from("y")),
+                    id: Some("y".to_string()),
                     title: "bye".to_string(),
                 },
             ]
