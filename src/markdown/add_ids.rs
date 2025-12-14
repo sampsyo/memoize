@@ -1,22 +1,5 @@
-use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd, html};
+use pulldown_cmark::{CowStr, Event, Tag, TagEnd};
 use std::collections::VecDeque;
-
-pub fn render(source: &str) -> String {
-    let mut options = Options::empty();
-    options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
-    options.insert(Options::ENABLE_SMART_PUNCTUATION);
-    options.insert(Options::ENABLE_TABLES);
-    options.insert(Options::ENABLE_FOOTNOTES);
-    let parser = Parser::new_ext(source, options);
-
-    // TODO produce table of contents
-    // TODO gather top-level heading as title
-
-    let mut buf = String::new();
-    let iter = AddHeadingIds::new(parser);
-    html::push_html(&mut buf, iter);
-    buf
-}
 
 /// Slugify a string and append it to a buffer.
 fn slug_append(buf: &mut String, s: &str) {
@@ -36,7 +19,7 @@ fn slug_append(buf: &mut String, s: &str) {
 
 /// A pulldown-cmark adapter that adds IDs to headings that don't already have
 /// them by "slugifying" the heading's text.
-struct AddHeadingIds<'a, I> {
+pub struct AddHeadingIds<'a, I> {
     iter: I,
     buffer: VecDeque<Event<'a>>,
 }
@@ -45,7 +28,7 @@ impl<'a, I> AddHeadingIds<'a, I>
 where
     I: Iterator<Item = Event<'a>>,
 {
-    fn new(iter: I) -> Self {
+    pub fn new(iter: I) -> Self {
         Self {
             iter,
             buffer: VecDeque::new(),
@@ -117,6 +100,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pulldown_cmark::{Options, Parser, html};
 
     fn render_with_ids(source: &str) -> String {
         let mut options = Options::empty();
