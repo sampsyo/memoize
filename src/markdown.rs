@@ -18,6 +18,16 @@ pub fn render(source: &str) -> String {
     buf
 }
 
+fn slug_append(buf: &mut String, s: &str) {
+    buf.extend(s.chars().map(|c| {
+        if c.is_alphanumeric() {
+            c.to_ascii_lowercase()
+        } else {
+            '-'
+        }
+    }));
+}
+
 struct AddHeadingIds<'a, I> {
     iter: I,
     buffer: VecDeque<Event<'a>>,
@@ -61,12 +71,12 @@ where
                 // Buffer up all the events until the header ends.
                 // TODO is there a clever iterator helper that can "chop off"
                 // another iterator, then we can just `collect` that
-                let mut textbuf = String::new(); // TODO avoid all the concatenation
+                let mut slugbuf = String::new(); // TODO avoid all the concatenation
                 while let Some(buf_event) = self.iter.next() {
                     let is_end = match &buf_event {
                         Event::End(TagEnd::Heading(_)) => true,
                         Event::Text(text) => {
-                            textbuf.push_str(text);
+                            slug_append(&mut slugbuf, text);
                             false
                         }
                         _ => false,
@@ -76,11 +86,10 @@ where
                         break;
                     }
                 }
-                dbg!(&textbuf);
 
                 Some(Event::Start(Tag::Heading {
                     level,
-                    id: Some(CowStr::from(textbuf)),
+                    id: Some(CowStr::from(slugbuf)),
                     classes,
                     attrs,
                 }))
@@ -129,6 +138,6 @@ mod tests {
 
     #[test]
     fn spaces() {
-        assert_eq!(render_with_ids("# h i"), "<h1 id=\"h-i\">hi</h1>\n");
+        assert_eq!(render_with_ids("# h i"), "<h1 id=\"h-i\">h i</h1>\n");
     }
 }
