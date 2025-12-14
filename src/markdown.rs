@@ -9,12 +9,12 @@ pub fn render(source: &str) -> String {
     options.insert(Options::ENABLE_FOOTNOTES);
     let parser = Parser::new_ext(source, options);
 
-    // TODO generate slugified anchors, produce table of contents
+    // TODO produce table of contents
     // TODO gather top-level heading as title
 
     let mut buf = String::new();
-    let wrapped = AddHeadingIds::new(parser); // TODO silly name
-    html::push_html(&mut buf, wrapped);
+    let iter = AddHeadingIds::new(parser);
+    html::push_html(&mut buf, iter);
     buf
 }
 
@@ -77,8 +77,8 @@ where
                 // Buffer up all the events until the header ends.
                 // TODO is there a clever iterator helper that can "chop off"
                 // another iterator, then we can just `collect` that
-                let mut slugbuf = String::new(); // TODO avoid all the concatenation
-                while let Some(buf_event) = self.iter.next() {
+                let mut slugbuf = String::new();
+                for buf_event in self.iter.by_ref() {
                     let is_end = match &buf_event {
                         Event::End(TagEnd::Heading(_)) => true,
                         Event::Text(text) => {
