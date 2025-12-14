@@ -74,12 +74,14 @@ where
             }) => {
                 assert!(self.buffer.is_empty(), "nested headings are not allowed");
 
-                // Buffer up all the events until the header ends.
-                // TODO is there a clever iterator helper that can "chop off"
-                // another iterator, then we can just `collect` that
+                // Buffer up all the events until the header ends. Accumulate
+                // the slug from text found within these buffered events. Later,
+                // we'll unbuffer the events when this iterator is called next.
+                // (This is crying out for a `take_until` iterator method;
+                // `take_while` doesn't quite cut it.)
                 let mut slugbuf = String::new();
-                for buf_event in self.iter.by_ref() {
-                    let is_end = match &buf_event {
+                for future_event in self.iter.by_ref() {
+                    let is_end = match &future_event {
                         Event::End(TagEnd::Heading(_)) => true,
                         Event::Text(text) => {
                             slug_append(&mut slugbuf, text);
@@ -87,7 +89,7 @@ where
                         }
                         _ => false,
                     };
-                    self.buffer.push_back(buf_event);
+                    self.buffer.push_back(future_event);
                     if is_end {
                         break;
                     }
