@@ -17,6 +17,13 @@
             }
         </style>
     </head>
+    <nav>
+        <ul>
+            {% for (level, id, title) in toc %}
+            <li><a href="#{{id}}" data-level="{{level}}"">{{title}}</a></li>
+            {% endfor %}
+        </ul>
+    </nav>
     <body>
         <main>{{ body | safe }}</main>
     </body>

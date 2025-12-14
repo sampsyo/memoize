@@ -43,7 +43,11 @@ impl Context {
 
     fn render_note(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
         let source = fs::read_to_string(src_path)?;
-        let body = markdown::render(&source);
+        let (body, toc_entries) = markdown::render(&source);
+        let toc: Vec<_> = toc_entries
+            .into_iter()
+            .map(|e| (e.level as u8, e.id, e.title))
+            .collect();
 
         let out_file = fs::File::create(dest_path)?;
 
@@ -51,6 +55,7 @@ impl Context {
         tmpl.render_to_write(
             minijinja::context! {
                 body => body,
+                toc => toc,
             },
             out_file,
         )?;
