@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 
 assets!(TEMPLATES, "templates", ["note.html", "style.css"]);
 
-struct Context {
+pub struct Context {
     src_dir: PathBuf,
     dest_dir: PathBuf,
     tmpls: minijinja::Environment<'static>,
@@ -161,10 +161,10 @@ fn hard_link_or_copy(from: &Path, to: &Path) -> std::io::Result<Option<u64>> {
 }
 
 fn main() {
-    // TODO proper CLI handling!
-    serve::serve();
-
     let src_dir = std::env::args().nth(1).unwrap();
     let ctx = Context::new(&src_dir, "_public");
     ctx.render_site().unwrap();
+
+    // TODO proper CLI handling!
+    serve::serve(ctx);
 }

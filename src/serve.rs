@@ -1,14 +1,13 @@
-use axum::{Router, http::Uri};
-
-pub fn serve() {
-    serve_inner()
-}
+use crate::Context;
+use axum::{Router, extract::State, http::Uri};
+use std::sync::Arc;
 
 #[tokio::main]
-async fn serve_inner() {
+pub async fn serve(ctx: Context) {
     tracing_subscriber::fmt::init();
 
-    let app = Router::new().fallback(blarg);
+    let shared_ctx = Arc::new(ctx);
+    let app = Router::new().fallback(blarg).with_state(shared_ctx);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
@@ -17,7 +16,8 @@ async fn serve_inner() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn blarg(uri: Uri) -> &'static str {
-    tracing::info!("request for {}", uri);
+async fn blarg(State(ctx): State<Arc<Context>>, uri: Uri) -> &'static str {
+    tracing::info!("request for {}", uri.path());
+    dbg!(&ctx.dest_dir);
     "Hello, World!"
 }
