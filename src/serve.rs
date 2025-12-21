@@ -2,11 +2,9 @@ use crate::Context;
 use crate::core::Resource;
 use axum::{
     Router,
-    body::Body,
     extract::State,
     http::{StatusCode, Uri, header},
-    response::IntoResponse,
-    response::Response,
+    response::{Html, IntoResponse, Response},
 };
 use axum_extra::body::AsyncReadBody;
 use std::path::Path;
@@ -52,8 +50,13 @@ async fn handle(
     match ctx.resolve_resource(path) {
         Some(Resource::Note(src_path)) => {
             let mut buf: Vec<u8> = vec![];
-            ctx.render_note(&src_path, &mut buf).unwrap();
-            Ok(Body::from(buf).into_response())
+            match ctx.render_note(&src_path, &mut buf) {
+                Ok(()) => Ok(Html(buf).into_response()),
+                Err(e) => Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("note rendering failed: {e}"),
+                )),
+            }
         }
         Some(Resource::Static(src_path)) => send_file(&src_path).await,
         Some(Resource::Directory(_)) => Err((
