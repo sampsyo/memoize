@@ -5,6 +5,7 @@ pub mod serve;
 use anyhow::Result;
 use std::ffi::OsStr;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
@@ -42,11 +43,7 @@ impl Context {
         }
     }
 
-    /// Render a single Markdown note file to an HTML file.
-    ///
-    /// Both `src_path` and `dest_path` are complete paths to files, not
-    /// relative to our source and destination directory.
-    fn render_note(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
+    fn render_to_write<W: Write>(&self, src_path: &Path, write: W) -> Result<()> {
         // Render the note body.
         let source = fs::read_to_string(src_path)?;
         let (body, toc_entries) = markdown::render(&source);
@@ -74,17 +71,25 @@ impl Context {
 
         // Render the template.
         let tmpl = self.tmpls.get_template("note.html")?;
-        let out_file = fs::File::create(dest_path)?;
         tmpl.render_to_write(
             minijinja::context! {
                 title => title,
                 body => body,
                 toc => toc,
             },
-            out_file,
+            write,
         )?;
 
         Ok(())
+    }
+
+    /// Render a single Markdown note file to an HTML file.
+    ///
+    /// Both `src_path` and `dest_path` are complete paths to files, not
+    /// relative to our source and destination directory.
+    fn render_note(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
+        let out_file = fs::File::create(dest_path)?;
+        self.render_to_write(src_path, out_file)
     }
 
     /// Should we skip a given file from the rendering process? We skip hidden

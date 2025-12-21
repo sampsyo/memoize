@@ -39,15 +39,21 @@ fn sanitize_path(path: &str) -> Option<PathBuf> {
     Some(path_buf)
 }
 
-async fn blarg(State(ctx): State<Arc<Context>>, uri: Uri) -> &'static str {
+async fn blarg(State(ctx): State<Arc<Context>>, uri: Uri) -> String {
     let path = sanitize_path(uri.path());
     if let Some(path) = path {
         tracing::info!("request for {:?}", &path);
         let src_path = ctx.src_dir.join(&path);
-        dbg!(src_path);
-        "Hello, World!"
+        dbg!(&src_path);
+        // TODO Check that it actually exists...
+        // TODO reverse-translate .html to md...
+
+        // TODO write directly...
+        let mut buf: Vec<u8> = vec![];
+        ctx.render_to_write(&src_path, &mut buf).unwrap();
+        String::from_utf8(buf).unwrap()
     } else {
-        "not found"
+        "not found".into()
     }
 }
 
