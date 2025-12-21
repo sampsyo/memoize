@@ -128,16 +128,18 @@ impl Context {
         let rel_path = Path::new(rel_path);
 
         // Reject all absolute paths.
-        // TODO should we also do the full path santation thing?
+        // TODO should we also do the full path sanitation thing?
         if rel_path.is_absolute() {
             return None;
         }
-
-        // If the file exists within the source directory, then this is a static
-        // resource.
         let src_path = self.src_dir.join(rel_path);
+
+        // If the path exists verbatim within the source directory, then this is
+        // either a static file or a directory.
         if src_path.is_file() {
             return Some(Resource::Static(src_path));
+        } else if src_path.is_dir() {
+            return Some(Resource::Directory(src_path));
         }
 
         // If this is an HTML file with a corresponding note, then we'll render it.
@@ -163,6 +165,10 @@ impl Context {
                 Ok(())
             }
             Resource::Note(path) => self.render_note_to_write(&path, write),
+            Resource::Directory(path) => {
+                writeln!(write, "directory: {}", path.display())?;
+                Ok(())
+            }
         }
     }
 
@@ -202,6 +208,7 @@ impl Context {
 pub enum Resource {
     Static(PathBuf),
     Note(PathBuf),
+    Directory(PathBuf),
 }
 
 /// Try to hard-link `from` at `to`, falling back to a copy if the link fails
