@@ -39,7 +39,7 @@ fn sanitize_path(path: &str) -> Option<PathBuf> {
     Some(path_buf)
 }
 
-async fn blarg(State(ctx): State<Arc<Context>>, uri: Uri) -> String {
+async fn blarg(State(ctx): State<Arc<Context>>, uri: Uri) -> Vec<u8> {
     let path = sanitize_path(uri.path());
     if let Some(path) = path {
         tracing::info!("request for {:?}", &path);
@@ -51,7 +51,7 @@ async fn blarg(State(ctx): State<Arc<Context>>, uri: Uri) -> String {
         // TODO write directly...
         let mut buf: Vec<u8> = vec![];
         ctx.render_to_write(&src_path, &mut buf).unwrap();
-        String::from_utf8(buf).unwrap()
+        buf
     } else {
         "not found".into()
     }
