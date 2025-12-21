@@ -114,8 +114,40 @@ impl Context {
         }
     }
 
+    /// Given a relative path to a rendered file (i.e., something that would go
+    /// in the destination directory), get the underlying resource for that
+    /// path.
+    fn resolve_resource(&self, rel_path: &Path) -> Option<Resource> {
+        // Reject all absolute paths.
+        // TODO should we also do the full path santation thing?
+        if rel_path.is_absolute() {
+            return None;
+        }
+
+        // If the file exists within the source directory, then this is a static
+        // resource.
+        let src_path = self.src_dir.join(rel_path);
+        if src_path.is_file() {
+            return Some(Resource::Static(src_path));
+        }
+
+        // If this is an HTML file with a corresponding note, then we'll render it.
+        if let Some(ext) = rel_path.extension()
+            && ext == "html"
+        {
+            let mut src_path = src_path;
+            src_path.set_extension("md");
+            if src_path.is_file() {
+                return Some(Resource::Note(src_path));
+            }
+        }
+
+        // Not found.
+        None
+    }
+
     fn render_site(&self) -> Result<()> {
-        fs::remove_dir_all(&self.dest_dir)?;
+        remove_dir_force(&self.dest_dir)?;
 
         // TODO parallelize rendering work
         for entry in WalkDir::new(&self.src_dir)
@@ -146,6 +178,12 @@ impl Context {
     }
 }
 
+#[derive(Debug)]
+enum Resource {
+    Static(PathBuf),
+    Note(PathBuf),
+}
+
 /// Try to hard-link `from` at `to`, falling back to a copy if the link fails
 /// (e.g., the two paths are on different filesystems). This always removes the
 /// current file at `to`.
@@ -159,8 +197,19 @@ fn hard_link_or_copy(from: &Path, to: &Path) -> std::io::Result<Option<u64>> {
     }
 }
 
+/// Like `std::fs::remove_dir_all`, but silently succeed if the directory already doesn't exist.
+fn remove_dir_force(path: &Path) -> std::io::Result<()> {
+    match fs::remove_dir_all(path) {
+        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+        Ok(()) => Ok(()),
+    }
+}
+
 fn main() {
-    let src_dir = std::env::args().nth(1).unwrap();
-    let ctx = Context::new(&src_dir, "_public");
+    let ctx = Context::new(".", "_public");
+    dbg!(ctx.resolve_resource(Path::new("foo.html")));
+    dbg!(ctx.resolve_resource(Path::new("bar.html")));
+    dbg!(ctx.resolve_resource(Path::new("stuff.txt")));
     ctx.render_site().unwrap();
 }
