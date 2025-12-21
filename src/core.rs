@@ -10,12 +10,11 @@ assets!(TEMPLATES, "templates", ["note.html", "style.css"]);
 
 pub struct Context {
     src_dir: PathBuf,
-    dest_dir: PathBuf,
     tmpls: minijinja::Environment<'static>,
 }
 
 impl Context {
-    pub fn new(src_dir: &str, dest_dir: &str) -> Self {
+    pub fn new(src_dir: &str) -> Self {
         let mut env = minijinja::Environment::new();
 
         // Register embedded templates, which are available in release mode.
@@ -35,7 +34,6 @@ impl Context {
 
         Self {
             src_dir: src_dir.into(),
-            dest_dir: dest_dir.into(),
             tmpls: env,
         }
     }
@@ -108,21 +106,21 @@ impl Context {
     }
 
     /// Given a path that is within `self.src_dir`, produce a mirrored path that
-    /// is at the same place is within `self.dest_dir`.
+    /// is at the same place is within `dest_dir`.
     ///
     /// Panics if `src` is not within `self.src_dir`.
-    fn mirrored_path(&self, src: &Path) -> PathBuf {
+    fn mirrored_path(&self, src: &Path, dest_dir: &Path) -> PathBuf {
         let rel_path = src
             .strip_prefix(&self.src_dir)
             .expect("path is within root directory");
-        self.dest_dir.join(rel_path)
+        dest_dir.join(rel_path)
     }
 
     /// If `src` is the path to a Markdown note file, return its HTML
     /// destination path. Otherwise, return None.
-    fn note_dest(&self, src: &Path) -> Option<PathBuf> {
+    fn note_dest(&self, src: &Path, dest_dir: &Path) -> Option<PathBuf> {
         if is_note(src) {
-            let mut mirrored = self.mirrored_path(src);
+            let mut mirrored = self.mirrored_path(src, dest_dir);
             mirrored.set_extension("html");
             Some(mirrored)
         } else {
@@ -189,20 +187,20 @@ impl Context {
     }
 
     /// Render all resources in a site to a destination directory.
-    pub fn render_site(&self) -> Result<()> {
-        remove_dir_force(&self.dest_dir)?;
+    pub fn render_site(&self, dest_dir: &Path) -> Result<()> {
+        remove_dir_force(dest_dir)?;
 
         // TODO parallelize rendering work
         for rsrc in self.read_resources() {
             match rsrc {
                 Resource::Directory(src_path) => {
-                    fs::create_dir_all(self.mirrored_path(&src_path))?;
+                    fs::create_dir_all(self.mirrored_path(&src_path, dest_dir))?;
                 }
                 Resource::Static(src_path) => {
-                    hard_link_or_copy(&src_path, &self.mirrored_path(&src_path))?;
+                    hard_link_or_copy(&src_path, &self.mirrored_path(&src_path, dest_dir))?;
                 }
                 Resource::Note(src_path) => {
-                    let dest_path = self.note_dest(&src_path).expect("must be a note");
+                    let dest_path = self.note_dest(&src_path, dest_dir).expect("must be a note");
                     match self.render_note_to_file(&src_path, &dest_path) {
                         Ok(_) => (),
                         Err(e) => {

@@ -5,6 +5,7 @@ pub mod markdown;
 use argh::FromArgs;
 use core::Context;
 use std::io;
+use std::path::Path;
 
 #[derive(FromArgs)]
 /// a static knowledge base
@@ -50,14 +51,17 @@ struct ListCommand {}
 
 fn main() {
     let args: Knot2 = argh::from_env();
-    let ctx = Context::new(&args.source, &args.dest);
+    let ctx = Context::new(&args.source);
     match args.mode {
-        Command::Build(_) => ctx.render_site().unwrap(),
+        Command::Build(_) => {
+            let dest_path = Path::new(&args.dest);
+            ctx.render_site(dest_path).unwrap()
+        }
         Command::Show(cmd) => match ctx.resolve_resource(&cmd.path) {
             Some(rsrc) => {
                 ctx.render_resource(rsrc, &mut io::stdout()).unwrap();
             }
-            None => println!("not found"),
+            None => eprintln!("not found"),
         },
         Command::List(_) => {
             for rsrc in ctx.read_resources() {
