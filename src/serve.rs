@@ -14,15 +14,13 @@ use tokio::fs;
 
 #[tokio::main]
 pub async fn serve(ctx: Context) {
-    tracing_subscriber::fmt::init();
-
     let shared_ctx = Arc::new(ctx);
     let app = Router::new().fallback(handle).with_state(shared_ctx);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
         .unwrap();
-    tracing::info!("listening on {}", listener.local_addr().unwrap());
+    println!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -46,10 +44,10 @@ async fn handle(
     State(ctx): State<Arc<Context>>,
     uri: Uri,
 ) -> Result<Response, (StatusCode, String)> {
+    println!("GET {:?}", &uri);
     let path = percent_decode_str(uri.path())
         .decode_utf8()
         .map_err(|_| (StatusCode::NOT_FOUND, "not found".into()))?;
-    tracing::info!("request for {:?}", &path);
 
     match ctx.resolve_resource(&path) {
         Some(Resource::Note(src_path)) => {
