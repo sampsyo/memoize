@@ -129,9 +129,17 @@ macro_rules! file_assets {
 macro_rules! assets {
     ($constname:ident, $dirname:literal, [ $($filename:literal),* ]) => {
         #[cfg(debug_assertions)]
-        file_assets!($constname, $dirname, [ $($filename),* ]);
+        $crate::assets::file_assets!($constname, $dirname, [ $($filename),* ]);
 
         #[cfg(not(debug_assertions))]
-        embed_assets!($constname, $dirname, [ $($filename),* ]);
+        $crate::assets::embed_assets!($constname, $dirname, [ $($filename),* ]);
     };
 }
+
+pub(crate) use assets;
+
+#[allow(unused_imports)]
+pub(crate) use embed_assets;
+
+#[allow(unused_imports)]
+pub(crate) use file_assets;

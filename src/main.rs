@@ -1,179 +1,86 @@
 pub mod assets;
+pub mod core;
 pub mod markdown;
 pub mod serve;
 
-use anyhow::Result;
-use std::ffi::OsStr;
-use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
+use argh::FromArgs;
+use core::Context;
+use std::io;
+use std::path::Path;
 
-assets!(TEMPLATES, "templates", ["note.html", "style.css"]);
+#[derive(FromArgs)]
+/// a static knowledge base
+struct Knot2 {
+    #[argh(subcommand)]
+    mode: Command,
 
-pub struct Context {
-    src_dir: PathBuf,
-    dest_dir: PathBuf,
-    tmpls: minijinja::Environment<'static>,
+    #[argh(option, default = "String::from(\".\")")]
+    /// source directory
+    source: String,
+
+    #[argh(option, default = "String::from(\"_public\")")]
+    /// destination directory
+    dest: String,
 }
 
-impl Context {
-    fn new(src_dir: &str, dest_dir: &str) -> Self {
-        let mut env = minijinja::Environment::new();
-
-        // Register embedded templates, which are available in release mode.
-        for (name, source) in TEMPLATES.contents() {
-            env.add_template(name, source)
-                .expect("embedded template must be valid Jinja code");
-        }
-
-        // In debug mode only, load templates directly from the filesystem.
-        #[cfg(debug_assertions)]
-        env.set_loader(|name| {
-            match TEMPLATES.read(name) {
-                Ok(source) => Ok(source),
-                Err(_) => Ok(None), // TODO maybe propagate error
-            }
-        });
-
-        Self {
-            src_dir: src_dir.into(),
-            dest_dir: dest_dir.into(),
-            tmpls: env,
-        }
-    }
-
-    fn render_to_write<W: Write>(&self, src_path: &Path, write: W) -> Result<()> {
-        // Render the note body.
-        let source = fs::read_to_string(src_path)?;
-        let (body, toc_entries) = markdown::render(&source);
-
-        // Extract the top-level title, if any.
-        let title = if let Some(first_head) = toc_entries.first()
-            && first_head.level as u8 == 1
-        {
-            Some(first_head.title.clone())
-        } else {
-            None
-        };
-
-        // Get the table of contents ready for rendering.
-        let toc: Vec<_> = toc_entries
-            .into_iter()
-            .map(|e| {
-                minijinja::context! {
-                    level => e.level as u8,
-                    id => e.id,
-                    title => e.title,
-                }
-            })
-            .collect();
-
-        // Render the template.
-        let tmpl = self.tmpls.get_template("note.html")?;
-        tmpl.render_to_write(
-            minijinja::context! {
-                title => title,
-                body => body,
-                toc => toc,
-            },
-            write,
-        )?;
-
-        Ok(())
-    }
-
-    /// Render a single Markdown note file to an HTML file.
-    ///
-    /// Both `src_path` and `dest_path` are complete paths to files, not
-    /// relative to our source and destination directory.
-    fn render_note(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
-        let out_file = fs::File::create(dest_path)?;
-        self.render_to_write(src_path, out_file)
-    }
-
-    /// Should we skip a given file from the rendering process? We skip hidden
-    /// files (prefixed with .) and ones starting with _, which are special.
-    fn skip_file(name: &OsStr) -> bool {
-        let bytes = name.as_encoded_bytes();
-        bytes.starts_with(b".") || bytes.starts_with(b"_")
-    }
-
-    /// Given a path that is within `self.src_dir`, produce a mirrored path that
-    /// is at the same place is within `self.dest_dir`.
-    ///
-    /// Panics if `src` is not within `self.src_dir`.
-    fn mirrored_path(&self, src: &Path) -> PathBuf {
-        let rel_path = src
-            .strip_prefix(&self.src_dir)
-            .expect("path is within root directory");
-        self.dest_dir.join(rel_path)
-    }
-
-    /// If `src` is the path to a Markdown note file, return its HTML
-    /// destination path. Otherwise, return None.
-    fn note_dest(&self, src: &Path) -> Option<PathBuf> {
-        if let Some(ext) = src.extension()
-            && ext == "md"
-        {
-            let mut mirrored = self.mirrored_path(src);
-            mirrored.set_extension("html");
-            Some(mirrored)
-        } else {
-            None
-        }
-    }
-
-    fn render_site(&self) -> Result<()> {
-        fs::remove_dir_all(&self.dest_dir)?;
-
-        // TODO parallelize rendering work
-        for entry in WalkDir::new(&self.src_dir)
-            .into_iter()
-            .filter_entry(|e| !Self::skip_file(e.file_name()))
-        {
-            let entry = entry?;
-            if entry.file_type().is_dir() {
-                // Create mirrored directories.
-                fs::create_dir_all(self.mirrored_path(entry.path()))?;
-            } else if entry.file_type().is_file() {
-                // Is this a Markdown note? Render it. Otherwise, just copy it.
-                let src_path = entry.path();
-                if let Some(dest_path) = self.note_dest(src_path) {
-                    match self.render_note(src_path, &dest_path) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            eprintln!("error rendering note {}: {}", entry.path().display(), e)
-                        }
-                    }
-                } else {
-                    hard_link_or_copy(src_path, &self.mirrored_path(src_path))?;
-                }
-            }
-        }
-
-        Ok(())
-    }
+#[derive(FromArgs)]
+#[argh(subcommand)]
+enum Command {
+    Build(BuildCommand),
+    Show(ShowCommand),
+    List(ListCommand),
+    Serve(ServeCommand),
 }
 
-/// Try to hard-link `from` at `to`, falling back to a copy if the link fails
-/// (e.g., the two paths are on different filesystems). This always removes the
-/// current file at `to`.
-fn hard_link_or_copy(from: &Path, to: &Path) -> std::io::Result<Option<u64>> {
-    if to.exists() {
-        fs::remove_file(to)?;
-    }
-    match fs::hard_link(from, to) {
-        Ok(_) => Ok(None),
-        Err(_) => fs::copy(from, to).map(Some),
-    }
+#[derive(FromArgs)]
+/// build the full site
+#[argh(subcommand, name = "build")]
+struct BuildCommand {}
+
+#[derive(FromArgs)]
+/// print a single file from the site
+#[argh(subcommand, name = "show")]
+struct ShowCommand {
+    #[argh(positional)]
+    /// a relative path to the file to render
+    path: String,
 }
+
+#[derive(FromArgs)]
+/// list the resources in a site
+#[argh(subcommand, name = "list")]
+struct ListCommand {}
+
+#[derive(FromArgs)]
+/// run a web server
+#[argh(subcommand, name = "serve")]
+struct ServeCommand {}
 
 fn main() {
-    let src_dir = std::env::args().nth(1).unwrap();
-    let ctx = Context::new(&src_dir, "_public");
-    ctx.render_site().unwrap();
-
-    // TODO proper CLI handling!
-    serve::serve(ctx);
+    let args: Knot2 = argh::from_env();
+    let ctx = Context::new(&args.source);
+    match args.mode {
+        Command::Build(_) => {
+            let dest_path = Path::new(&args.dest);
+            ctx.render_site(dest_path).unwrap()
+        }
+        Command::Show(cmd) => match ctx.resolve_resource(&cmd.path) {
+            Some(rsrc) => {
+                ctx.render_resource(rsrc, &mut io::stdout()).unwrap();
+            }
+            None => eprintln!("not found"),
+        },
+        Command::List(_) => {
+            for rsrc in ctx.read_resources() {
+                match rsrc {
+                    core::Resource::Directory(path) => println!("dir  {}", path.display()),
+                    core::Resource::Static(path) => println!("file {}", path.display()),
+                    core::Resource::Note(path) => println!("note {}", path.display()),
+                }
+            }
+        }
+        Command::Serve(_) => {
+            serve::serve(ctx);
+        }
+    }
 }

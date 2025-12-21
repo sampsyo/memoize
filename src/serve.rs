@@ -50,7 +50,7 @@ async fn blarg(State(ctx): State<Arc<Context>>, uri: Uri) -> Vec<u8> {
 
         // TODO write directly...
         let mut buf: Vec<u8> = vec![];
-        ctx.render_to_write(&src_path, &mut buf).unwrap();
+        ctx.render_note(&src_path, &mut buf).unwrap();
         buf
     } else {
         "not found".into()
