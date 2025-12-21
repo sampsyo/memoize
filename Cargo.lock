@@ -294,6 +294,7 @@ dependencies = [
  "axum-extra",
  "mime_guess",
  "minijinja",
+ "percent-encoding",
  "pulldown-cmark",
  "tokio",
  "tokio-util",

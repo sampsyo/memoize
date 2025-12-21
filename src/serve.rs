@@ -7,6 +7,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use axum_extra::body::AsyncReadBody;
+use percent_encoding::percent_decode_str;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::fs;
@@ -25,6 +26,7 @@ pub async fn serve(ctx: Context) {
     axum::serve(listener, app).await.unwrap();
 }
 
+/// Respond with the contents of a file on the filesystem.
 async fn send_file(path: &Path) -> Result<Response, (StatusCode, String)> {
     let mime = mime_guess::from_path(path)
         .first_raw()
@@ -39,15 +41,17 @@ async fn send_file(path: &Path) -> Result<Response, (StatusCode, String)> {
     Ok((headers, body).into_response())
 }
 
+/// Serve a resource from the site.
 async fn handle(
     State(ctx): State<Arc<Context>>,
     uri: Uri,
 ) -> Result<Response, (StatusCode, String)> {
-    // TODO percent-unescape the path?
-    let path = uri.path();
+    let path = percent_decode_str(uri.path())
+        .decode_utf8()
+        .map_err(|_| (StatusCode::NOT_FOUND, "not found".into()))?;
     tracing::info!("request for {:?}", &path);
 
-    match ctx.resolve_resource(path) {
+    match ctx.resolve_resource(&path) {
         Some(Resource::Note(src_path)) => {
             let mut buf: Vec<u8> = vec![];
             match ctx.render_note(&src_path, &mut buf) {
