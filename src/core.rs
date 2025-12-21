@@ -2,7 +2,7 @@ use crate::assets::assets;
 use crate::markdown;
 use anyhow::Result;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::{fs, io};
 use walkdir::WalkDir;
 
@@ -89,13 +89,6 @@ impl Context {
         self.render_note_to_write(src_path, &mut out_file)
     }
 
-    /// Should we skip a given file from the rendering process? We skip hidden
-    /// files (prefixed with .) and ones starting with _, which are special.
-    fn skip_file(name: &OsStr) -> bool {
-        let bytes = name.as_encoded_bytes();
-        (bytes != b"." && bytes.starts_with(b".")) || bytes.starts_with(b"_")
-    }
-
     /// Given a path that is within `self.src_dir`, produce a mirrored path that
     /// is at the same place is within `self.dest_dir`.
     ///
@@ -125,14 +118,10 @@ impl Context {
     /// in the destination directory), get the underlying resource for that
     /// path.
     pub fn resolve_resource(&self, rel_path: &str) -> Option<Resource> {
-        let rel_path = Path::new(rel_path);
-
-        // Reject all absolute paths.
-        // TODO should we also do the full path sanitation thing?
-        if rel_path.is_absolute() {
-            return None;
-        }
-        let src_path = self.src_dir.join(rel_path);
+        // Ensure that we actually have a safe, relative path fragment, and then
+        // join it under the source directory.
+        let rel_path = sanitize_path(rel_path)?;
+        let src_path = self.src_dir.join(&rel_path);
 
         // If the path exists verbatim within the source directory, then this is
         // either a static file or a directory.
@@ -178,7 +167,7 @@ impl Context {
         // TODO parallelize rendering work
         for entry in WalkDir::new(&self.src_dir)
             .into_iter()
-            .filter_entry(|e| !Self::skip_file(e.file_name()))
+            .filter_entry(|e| !ignore_filename(e.file_name()))
         {
             let entry = entry?;
             if entry.file_type().is_dir() {
@@ -230,5 +219,76 @@ fn remove_dir_force(path: &Path) -> std::io::Result<()> {
         Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e),
         Ok(()) => Ok(()),
+    }
+}
+
+/// Should we skip a given file from the rendering process? We skip hidden
+/// files (prefixed with .) and ones starting with _, which are special.
+fn ignore_filename(name: &OsStr) -> bool {
+    let bytes = name.as_encoded_bytes();
+    (bytes != b"." && bytes.starts_with(b".")) || bytes.starts_with(b"_")
+}
+
+/// Validate and relative-ize a requested path. If we return a path, it is now
+/// safe to `join` with a base directory without "escaping" that directory. May
+/// return `None` for any disallowed path.
+fn sanitize_path(path: &str) -> Option<PathBuf> {
+    let mut path_buf = PathBuf::new();
+    for comp in Path::new(path).components() {
+        match comp {
+            Component::Normal(c) => {
+                if ignore_filename(c) {
+                    return None;
+                } else {
+                    path_buf.push(c);
+                }
+            }
+            Component::ParentDir => return None, // Disallow `..`.
+            Component::Prefix(_) => return None, // Disallow `C:`.
+            Component::RootDir => (),            // Strip leading `/`.
+            Component::CurDir => (),             // Ignore `.`.
+        }
+    }
+
+    Some(path_buf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn absolute() {
+        assert_eq!(sanitize_path("/hi.txt"), Some("hi.txt".into()));
+    }
+
+    #[test]
+    fn relative() {
+        assert_eq!(sanitize_path("hi.txt"), Some("hi.txt".into()));
+    }
+
+    #[test]
+    fn with_dir() {
+        assert_eq!(sanitize_path("/dir/hi.txt"), Some("dir/hi.txt".into()));
+    }
+
+    #[test]
+    fn dot_dot() {
+        assert_eq!(sanitize_path("/../hi.txt"), None);
+    }
+
+    #[test]
+    fn dot_hidden_file() {
+        assert_eq!(sanitize_path(".hi.txt"), None);
+    }
+
+    #[test]
+    fn underscore_hidden_file() {
+        assert_eq!(sanitize_path("_hi.txt"), None);
+    }
+
+    #[test]
+    fn underscore_hidden_dir() {
+        assert_eq!(sanitize_path("foo/_bar/hi.txt"), None);
     }
 }
