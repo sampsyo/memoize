@@ -42,6 +42,10 @@ impl Context {
         }
     }
 
+    /// Render a single Markdown note file to an HTML file.
+    ///
+    /// Both `src_path` and `dest_path` are complete paths to files, not
+    /// relative to our source and destination directory.
     fn render_note(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
         // Render the note body.
         let source = fs::read_to_string(src_path)?;
