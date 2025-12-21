@@ -40,7 +40,8 @@ impl Context {
         }
     }
 
-    fn render_note_to_write<W: io::Write>(&self, src_path: &Path, dest: &mut W) -> Result<()> {
+    /// Render the HTML page for a given Markdown note.
+    fn render_note<W: io::Write>(&self, src_path: &Path, dest: &mut W) -> Result<()> {
         // Render the note body.
         let source = fs::read_to_string(src_path)?;
         let (body, toc_entries) = markdown::render(&source);
@@ -84,9 +85,26 @@ impl Context {
     ///
     /// Both `src_path` and `dest_path` are complete paths to files, not
     /// relative to our source and destination directory.
-    fn render_note(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
+    fn render_note_to_file(&self, src_path: &Path, dest_path: &Path) -> Result<()> {
         let mut out_file = fs::File::create(dest_path)?;
-        self.render_note_to_write(src_path, &mut out_file)
+        self.render_note(src_path, &mut out_file)
+    }
+
+    /// Render any resource.
+    pub fn render_resource<W: std::io::Write>(&self, rsrc: Resource, dest: &mut W) -> Result<()> {
+        match rsrc {
+            Resource::Static(path) => {
+                let mut file = fs::File::open(path)?;
+                io::copy(&mut file, dest)?;
+                Ok(())
+            }
+            Resource::Note(path) => self.render_note(&path, dest),
+            Resource::Directory(path) => {
+                // TODO this is where we'd generate index pages
+                writeln!(dest, "directory: {}", path.display())?;
+                Ok(())
+            }
+        }
     }
 
     /// Given a path that is within `self.src_dir`, produce a mirrored path that
@@ -113,8 +131,8 @@ impl Context {
     }
 
     /// Given a relative path to a rendered file (i.e., something that would go
-    /// in the destination directory), get the underlying resource for that
-    /// path.
+    /// in the destination directory), look up the underlying resource for that
+    /// path, if one exists.
     pub fn resolve_resource(&self, rel_path: &str) -> Option<Resource> {
         // Ensure that we actually have a safe, relative path fragment, and then
         // join it under the source directory.
@@ -144,21 +162,7 @@ impl Context {
         None
     }
 
-    pub fn render_resource<W: std::io::Write>(&self, rsrc: Resource, write: &mut W) -> Result<()> {
-        match rsrc {
-            Resource::Static(path) => {
-                let mut file = fs::File::open(path)?;
-                io::copy(&mut file, write)?;
-                Ok(())
-            }
-            Resource::Note(path) => self.render_note_to_write(&path, write),
-            Resource::Directory(path) => {
-                writeln!(write, "directory: {}", path.display())?;
-                Ok(())
-            }
-        }
-    }
-
+    /// List all the resources in the source directory.
     pub fn read_resources(&self) -> impl Iterator<Item = Resource> {
         WalkDir::new(&self.src_dir)
             .into_iter()
@@ -184,6 +188,7 @@ impl Context {
             })
     }
 
+    /// Render all resources in a site to a destination directory.
     pub fn render_site(&self) -> Result<()> {
         remove_dir_force(&self.dest_dir)?;
 
@@ -198,7 +203,7 @@ impl Context {
                 }
                 Resource::Note(src_path) => {
                     let dest_path = self.note_dest(&src_path).expect("must be a note");
-                    match self.render_note(&src_path, &dest_path) {
+                    match self.render_note_to_file(&src_path, &dest_path) {
                         Ok(_) => (),
                         Err(e) => {
                             eprintln!("error rendering note {}: {}", src_path.display(), e)
