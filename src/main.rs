@@ -90,7 +90,7 @@ fn main() {
             serve::serve(ctx);
         }
         Command::Watch(_) => {
-            watch::blarg(Path::new(&args.source));
+            watch::blarg(ctx);
         }
     }
 }

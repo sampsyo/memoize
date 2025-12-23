@@ -1,8 +1,9 @@
+use crate::core::Context;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
-use std::path::Path;
 use tokio::sync::broadcast;
 
 pub struct Watch {
+    ctx: Context,
     watcher: RecommendedWatcher,
     tx: broadcast::Sender<Event>,
 }
@@ -14,7 +15,7 @@ pub enum Event {
 }
 
 impl Watch {
-    pub fn new(path: &Path) -> Self {
+    pub fn new(ctx: Context) -> Self {
         let (tx, _) = broadcast::channel(16);
         let foo = tx.clone();
 
@@ -36,15 +37,21 @@ impl Watch {
         )
         .unwrap();
 
-        watcher.watch(path, RecursiveMode::Recursive).unwrap();
+        watcher
+            .watch(&ctx.src_dir, RecursiveMode::Recursive)
+            .unwrap();
 
-        Self { watcher, tx: foo }
+        Self {
+            ctx,
+            watcher,
+            tx: foo,
+        }
     }
 }
 
 #[tokio::main]
-pub async fn blarg(path: &Path) {
-    let watch = Watch::new(path);
+pub async fn blarg(ctx: Context) {
+    let watch = Watch::new(ctx);
 
     let mut rx = watch.tx.subscribe();
     tokio::spawn(async move {
