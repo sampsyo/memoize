@@ -4,8 +4,8 @@ use std::path::Path;
 use tokio::sync::broadcast;
 
 pub struct Watch {
-    watcher: RecommendedWatcher,
-    tx: broadcast::Sender<Event>,
+    pub watcher: RecommendedWatcher,
+    pub channel: broadcast::Sender<Event>,
 }
 
 // TODO this looks silly, but we have an enum here for possible future
@@ -18,7 +18,7 @@ pub enum Event {
 impl Watch {
     pub fn new(path: &Path) -> Self {
         let (tx, _) = broadcast::channel(16);
-        let foo = tx.clone();
+        let channel = tx.clone();
 
         let mut watcher = RecommendedWatcher::new(
             move |res: notify::Result<notify::Event>| {
@@ -45,7 +45,7 @@ impl Watch {
 
         watcher.watch(&path, RecursiveMode::Recursive).unwrap();
 
-        Self { watcher, tx: foo }
+        Self { watcher, channel }
     }
 }
 
@@ -53,7 +53,7 @@ impl Watch {
 pub async fn blarg(ctx: Context) {
     let watch = Watch::new(&ctx.src_dir);
 
-    let mut rx = watch.tx.subscribe();
+    let mut rx = watch.channel.subscribe();
     tokio::spawn(async move {
         loop {
             let event = rx.recv().await.unwrap();
