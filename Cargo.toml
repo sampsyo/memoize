@@ -19,3 +19,4 @@ mime_guess = { version = "2", default-features = false }
 
 # For watching & livereload.
 notify = "8"
+tokio-stream = { version = "0.1", features = ["sync"] }

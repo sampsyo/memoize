@@ -57,6 +57,7 @@ pub async fn blarg(ctx: Context) {
     tokio::spawn(async move {
         loop {
             let event = rx.recv().await.unwrap();
+            // TODO this should do something useful, such as actually rebuild the site
             dbg!(event);
         }
     })
