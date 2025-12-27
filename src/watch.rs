@@ -5,8 +5,11 @@ use std::path::{Component, Path, PathBuf};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 
-// TODO this looks silly, but we have an enum here for possible future
-// extensibility (only reloading one page instead of all of them)
+/// An event telling a client what to do.
+///
+/// This looks silly, but this is an enum to allow for future extensibility: for
+/// example, a future command could reload only a single page instead of
+/// everything.
 #[derive(Debug, Clone)]
 pub enum Event {
     Reload,
