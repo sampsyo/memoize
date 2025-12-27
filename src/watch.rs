@@ -21,23 +21,15 @@ impl Watch {
 
         let mut watcher = RecommendedWatcher::new(
             move |res: notify::Result<notify::Event>| {
-                match res {
-                    Ok(event) => {
-                        eprintln!("event: {:?}", event);
-                        if let EventKind::Modify(ModifyKind::Data(_)) = event.kind {
-                            for path in event.paths.iter() {
-                                // TODO check if it's ignored
-                                dbg!(path);
-                            }
-                        }
-                        // TODO debounce
-                        match tx.send(Event::Reload) {
-                            Ok(_) => (),
-                            Err(e) => eprintln!("channel send error: {e}"),
-                        }
-                    }
-                    Err(error) => eprintln!("error: {}", error),
-                };
+                if let Ok(event) = res
+                    && let EventKind::Modify(ModifyKind::Data(_)) = event.kind
+                {
+                    // TODO check for at least one non-ignored path in `event.paths`
+                    // TODO debounce
+                    // We ignore errors when sending events: it's OK to
+                    // silently drop messages when there are no subscribers.
+                    let _ = tx.send(Event::Reload);
+                }
             },
             Config::default(),
         )

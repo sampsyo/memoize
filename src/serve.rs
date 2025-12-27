@@ -83,6 +83,9 @@ async fn notify(
     State(state): State<Arc<AppState>>,
 ) -> sse::Sse<impl Stream<Item = Result<sse::Event, Infallible>>> {
     let rx = state.watch.channel.subscribe();
-    let stream = BroadcastStream::new(rx).map(|_| Ok(sse::Event::default().data("reload")));
+    let stream = BroadcastStream::new(rx).map(|_| {
+        eprintln!("sending reload event");
+        Ok(sse::Event::default().data("reload"))
+    });
     sse::Sse::new(stream)
 }
