@@ -18,6 +18,8 @@ pub enum Event {
     Reload,
 }
 
+/// An active filesystem watch that emits `Event`s on changes via a Tokio
+/// broadcast channel.
 pub struct Watch {
     _watcher: RecommendedWatcher,
     channel: broadcast::Sender<Event>,
@@ -33,7 +35,6 @@ impl Watch {
             last_event: Instant::now(),
         };
         let mut watcher = RecommendedWatcher::new(handler, Config::default()).unwrap();
-
         watcher.watch(path, RecursiveMode::Recursive).unwrap();
 
         Self {
@@ -48,8 +49,8 @@ impl Watch {
     }
 }
 
-pub struct Handler {
-    pub channel: broadcast::Sender<Event>,
+struct Handler {
+    channel: broadcast::Sender<Event>,
     base: PathBuf,
     last_event: Instant,
 }

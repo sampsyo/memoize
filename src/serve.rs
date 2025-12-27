@@ -78,7 +78,7 @@ async fn resource(
     }
 }
 
-// Server-Sent Events endpoint for getting change notifications.
+/// Server-Sent Events endpoint for getting change notifications.
 async fn notify(
     State(state): State<Arc<AppState>>,
 ) -> sse::Sse<impl Stream<Item = Result<sse::Event, Infallible>>> {
