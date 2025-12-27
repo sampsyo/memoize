@@ -6,15 +6,20 @@ use std::path::{Component, Path, PathBuf};
 use std::{fs, io};
 use walkdir::WalkDir;
 
-assets!(TEMPLATES, "templates", ["note.html", "style.css"]);
+assets!(
+    TEMPLATES,
+    "templates",
+    ["note.html", "style.css", "livereload.js"]
+);
 
 pub struct Context {
     pub src_dir: PathBuf,
+    pub livereload: bool,
     tmpls: minijinja::Environment<'static>,
 }
 
 impl Context {
-    pub fn new(src_dir: &str) -> Self {
+    pub fn new(src_dir: &str, livereload: bool) -> Self {
         let mut env = minijinja::Environment::new();
 
         // Register embedded templates, which are available in release mode.
@@ -35,6 +40,7 @@ impl Context {
         Self {
             src_dir: src_dir.into(),
             tmpls: env,
+            livereload,
         }
     }
 
@@ -72,6 +78,7 @@ impl Context {
                 title => title,
                 body => body,
                 toc => toc,
+                livereload => self.livereload,
             },
             dest,
         )?;

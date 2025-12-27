@@ -65,7 +65,7 @@ struct WatchCommand {}
 
 fn main() {
     let args: Knot2 = argh::from_env();
-    let ctx = Context::new(&args.source);
+    let ctx = Context::new(&args.source, matches!(args.mode, Command::Serve(_)));
     match args.mode {
         Command::Build(_) => {
             let dest_path = Path::new(&args.dest);

@@ -6,6 +6,11 @@
         <style>
             {% include "style.css" without context %}
         </style>
+        {%- if livereload %}
+        <script>
+            {% include "livereload.js" %}
+        </script>
+        {%- endif %}
     </head>
     <body>
         <nav>
