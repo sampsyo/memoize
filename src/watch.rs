@@ -2,8 +2,11 @@ use notify::{
     Config, EventHandler, EventKind, RecommendedWatcher, RecursiveMode, Watcher, event::ModifyKind,
 };
 use std::path::{Component, Path, PathBuf};
+use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
+
+const DEBOUNCE_INTERVAL: Duration = Duration::from_millis(100);
 
 /// An event telling a client what to do.
 ///
@@ -27,6 +30,7 @@ impl Watch {
         let handler = Handler {
             base: std::path::absolute(path).expect("need absolute base path"),
             channel: tx.clone(),
+            last_event: Instant::now(),
         };
         let mut watcher = RecommendedWatcher::new(handler, Config::default()).unwrap();
 
@@ -45,17 +49,25 @@ impl Watch {
 }
 
 pub struct Handler {
-    pub base: PathBuf,
     pub channel: broadcast::Sender<Event>,
+    base: PathBuf,
+    last_event: Instant,
 }
 
 impl EventHandler for Handler {
     fn handle_event(&mut self, res: notify::Result<notify::Event>) {
+        // Ignore events that happen close together.
+        if self.last_event.elapsed() < DEBOUNCE_INTERVAL {
+            return;
+        }
+
+        // Is this a modification of a file we care about?
         if let Ok(event) = res
             && let EventKind::Modify(ModifyKind::Data(_)) = event.kind
             && !event.paths.iter().any(|p| ignore_path(&self.base, p))
         {
-            // TODO debounce
+            self.last_event = Instant::now();
+
             // We ignore errors when sending events: it's OK to
             // silently drop messages when there are no subscribers.
             let _ = self.channel.send(Event::Reload);
