@@ -1,6 +1,6 @@
 use crate::Context;
 use crate::core::Resource;
-use crate::watch;
+use crate::watch::Watch;
 use axum::{
     Router,
     extract::{Path, State},
@@ -13,22 +13,17 @@ use std::convert::Infallible;
 use std::path;
 use std::sync::Arc;
 use tokio::fs;
-use tokio_stream::{Stream, StreamExt, wrappers::BroadcastStream};
+use tokio_stream::{Stream, StreamExt};
 
 struct AppState {
     ctx: Context,
-    watcher: notify::RecommendedWatcher,
-    channel: tokio::sync::broadcast::Sender<watch::Event>,
+    watch: Watch,
 }
 
 #[tokio::main]
 pub async fn serve(ctx: Context) {
-    let (watcher, channel) = watch::watch(&ctx.src_dir);
-    let state = Arc::new(AppState {
-        ctx,
-        watcher,
-        channel,
-    });
+    let watch = Watch::new(&ctx.src_dir);
+    let state = Arc::new(AppState { ctx, watch });
     let app = Router::new()
         .route("/_notify", get(notify))
         .route("/{*path}", get(resource))
@@ -87,8 +82,7 @@ async fn resource(
 async fn notify(
     State(state): State<Arc<AppState>>,
 ) -> sse::Sse<impl Stream<Item = Result<sse::Event, Infallible>>> {
-    let rx = state.channel.subscribe();
-    let stream = BroadcastStream::new(rx).map(|_| {
+    let stream = state.watch.stream().map(|_| {
         eprintln!("sending reload event");
         Ok(sse::Event::default().event("reload").data("_"))
     });

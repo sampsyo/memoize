@@ -3,12 +3,42 @@ use notify::{
 };
 use std::path::{Component, Path, PathBuf};
 use tokio::sync::broadcast;
+use tokio_stream::wrappers::BroadcastStream;
 
 // TODO this looks silly, but we have an enum here for possible future
 // extensibility (only reloading one page instead of all of them)
 #[derive(Debug, Clone)]
 pub enum Event {
     Reload,
+}
+
+pub struct Watch {
+    _watcher: RecommendedWatcher,
+    channel: broadcast::Sender<Event>,
+}
+
+impl Watch {
+    pub fn new(path: &Path) -> Self {
+        let (tx, _) = broadcast::channel(16);
+
+        let handler = Handler {
+            base: std::path::absolute(path).expect("need absolute base path"),
+            channel: tx.clone(),
+        };
+        let mut watcher = RecommendedWatcher::new(handler, Config::default()).unwrap();
+
+        watcher.watch(path, RecursiveMode::Recursive).unwrap();
+
+        Self {
+            _watcher: watcher,
+            channel: tx,
+        }
+    }
+
+    pub fn stream(&self) -> BroadcastStream<Event> {
+        let rx = self.channel.subscribe();
+        BroadcastStream::new(rx)
+    }
 }
 
 pub struct Handler {
@@ -28,20 +58,6 @@ impl EventHandler for Handler {
             let _ = self.channel.send(Event::Reload);
         }
     }
-}
-
-pub fn watch(path: &Path) -> (RecommendedWatcher, broadcast::Sender<Event>) {
-    let (tx, _) = broadcast::channel(16);
-
-    let handler = Handler {
-        base: std::path::absolute(path).expect("need absolute base path"),
-        channel: tx.clone(),
-    };
-    let mut watcher = RecommendedWatcher::new(handler, Config::default()).unwrap();
-
-    watcher.watch(path, RecursiveMode::Recursive).unwrap();
-
-    (watcher, tx)
 }
 
 /// Check whether we should ignore a given path inside of a base directory.
