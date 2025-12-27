@@ -1,5 +1,5 @@
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher, event::ModifyKind};
-use std::path::Path;
+use std::path::{Component, Path};
 use tokio::sync::broadcast;
 
 pub struct Watch {
@@ -17,14 +17,16 @@ pub enum Event {
 impl Watch {
     pub fn new(path: &Path) -> Self {
         let (tx, _) = broadcast::channel(16);
-        let channel = tx.clone();
 
+        // TODO are these clones really necessary?
+        let channel = tx.clone();
+        let base = std::path::absolute(path).expect("need absolute base path");
         let mut watcher = RecommendedWatcher::new(
             move |res: notify::Result<notify::Event>| {
                 if let Ok(event) = res
                     && let EventKind::Modify(ModifyKind::Data(_)) = event.kind
+                    && !event.paths.iter().any(|p| ignore_path(&base, p))
                 {
-                    // TODO check for at least one non-ignored path in `event.paths`
                     // TODO debounce
                     // We ignore errors when sending events: it's OK to
                     // silently drop messages when there are no subscribers.
@@ -39,4 +41,19 @@ impl Watch {
 
         Self { watcher, channel }
     }
+}
+
+fn ignore_path(base: &Path, path: &Path) -> bool {
+    for comp in path
+        .strip_prefix(base)
+        .expect("path must be inside base")
+        .components()
+    {
+        if let Component::Normal(name) = comp {
+            if crate::core::ignore_filename(name) {
+                return true;
+            }
+        }
+    }
+    return false;
 }

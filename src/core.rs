@@ -252,7 +252,7 @@ fn remove_dir_force(path: &Path) -> std::io::Result<()> {
 
 /// Should we skip a given file from the rendering process? We skip hidden
 /// files (prefixed with .) and ones starting with _, which are special.
-fn ignore_filename(name: &OsStr) -> bool {
+pub fn ignore_filename(name: &OsStr) -> bool {
     let bytes = name.as_encoded_bytes();
     (bytes != b"." && bytes.starts_with(b".")) || bytes.starts_with(b"_")
 }
