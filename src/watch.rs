@@ -43,12 +43,17 @@ impl Watch {
     }
 }
 
+/// Check whether we should ignore a given path inside of a base directory.
+///
+/// It's ignored if any component below `base` is an ignored filename. Also,
+/// anything outside `base` is also ignored. Both arguments must be provided as
+/// absolute paths.
 fn ignore_path(base: &Path, path: &Path) -> bool {
-    for comp in path
-        .strip_prefix(base)
-        .expect("path must be inside base")
-        .components()
-    {
+    let frag = match path.strip_prefix(base) {
+        Ok(p) => p,
+        Err(_) => return true,
+    };
+    for comp in frag.components() {
         if let Component::Normal(name) = comp {
             if crate::core::ignore_filename(name) {
                 return true;
