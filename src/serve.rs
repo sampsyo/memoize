@@ -85,7 +85,7 @@ async fn notify(
     let rx = state.watch.channel.subscribe();
     let stream = BroadcastStream::new(rx).map(|_| {
         eprintln!("sending reload event");
-        Ok(sse::Event::default().data("reload"))
+        Ok(sse::Event::default().event("reload").data("_"))
     });
     sse::Sse::new(stream)
 }
