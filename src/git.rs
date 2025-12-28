@@ -5,15 +5,15 @@ use std::process::Command;
 pub struct CommitData(Vec<u8>);
 
 #[derive(Debug)]
-struct CommitInfo<'a> {
-    hash: &'a str,
-    date: &'a str,
-    email: &'a str,
-    name: &'a str,
+pub struct CommitInfo<'a> {
+    pub hash: &'a str,
+    pub date: &'a str,
+    pub email: &'a str,
+    pub name: &'a str,
 }
 
 impl CommitData {
-    fn info<'a>(&'a self) -> CommitInfo<'a> {
+    pub fn info<'a>(&'a self) -> CommitInfo<'a> {
         let res = str::from_utf8(&self.0)
             .expect("git output must be UTF-8")
             .strip_suffix("\n")

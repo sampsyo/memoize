@@ -1,5 +1,5 @@
 use crate::assets::assets;
-use crate::markdown;
+use crate::{git, markdown};
 use anyhow::Result;
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
@@ -78,6 +78,17 @@ impl Context {
             })
             .collect();
 
+        // Get git commit info.
+        let commit = git::last_commit(&self.src_dir, src_path).ok().map(|c| {
+            let info = c.info();
+            minijinja::context! {
+                hash => info.hash,
+                date => info.date,
+                email => info.email,
+                name => info.name,
+            }
+        });
+
         // Render the template.
         let tmpl = self.tmpls.get_template("note.html")?;
         tmpl.render_to_write(
@@ -86,6 +97,7 @@ impl Context {
                 body => body,
                 toc => toc,
                 livereload => self.livereload,
+                git => commit,
             },
             dest,
         )?;
