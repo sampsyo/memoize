@@ -2,13 +2,13 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        <title>{{title or "Untitled"}}</title>
+        <title>{{ title or "Untitled" }}</title>
         <style>
             {% include "style.css" without context %}
         </style>
         {%- if livereload %}
         <script>
-            {% include "livereload.js" %}
+            {% include "livereload.js" without context %}
         </script>
         {%- endif %}
     </head>
