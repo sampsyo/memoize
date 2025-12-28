@@ -23,11 +23,17 @@ struct AppState {
 
 #[tokio::main]
 pub async fn serve(ctx: Context) {
-    let watch = Watch::new(&ctx.src_dir);
+    // Watch the source directory and, in debug mode, the templates directory.
+    let watch = Watch::new(&[
+        &ctx.src_dir,
+        #[cfg(debug_assertions)]
+        path::Path::new(crate::core::TEMPLATES.dir),
+    ]);
     let state = AppState {
         ctx: Arc::new(RwLock::new(ctx)),
         watch: Arc::new(watch),
     };
+
     let app = Router::new()
         .route("/_notify", get(notify))
         .route("/{*path}", get(resource))

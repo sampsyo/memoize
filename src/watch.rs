@@ -26,16 +26,21 @@ pub struct Watch {
 }
 
 impl Watch {
-    pub fn new(path: &Path) -> Self {
+    pub fn new(paths: &[&Path]) -> Self {
         let (tx, _) = broadcast::channel(16);
 
         let handler = Handler {
-            base: std::path::absolute(path).expect("need absolute base path"),
+            bases: paths
+                .iter()
+                .map(|p| std::path::absolute(p).expect("need absolute base path"))
+                .collect(),
             channel: tx.clone(),
             last_event: Instant::now(),
         };
         let mut watcher = RecommendedWatcher::new(handler, Config::default()).unwrap();
-        watcher.watch(path, RecursiveMode::Recursive).unwrap();
+        for path in paths {
+            watcher.watch(path, RecursiveMode::Recursive).unwrap();
+        }
 
         Self {
             _watcher: watcher,
@@ -51,7 +56,7 @@ impl Watch {
 
 struct Handler {
     channel: broadcast::Sender<Event>,
-    base: PathBuf,
+    bases: Vec<PathBuf>,
     last_event: Instant,
 }
 
@@ -65,7 +70,7 @@ impl EventHandler for Handler {
         // Is this a modification of a file we care about?
         if let Ok(event) = res
             && let EventKind::Modify(ModifyKind::Data(_)) = event.kind
-            && !event.paths.iter().any(|p| ignore_path(&self.base, p))
+            && !event.paths.iter().any(|p| ignore_path(&self.bases, p))
         {
             self.last_event = Instant::now();
 
@@ -76,22 +81,25 @@ impl EventHandler for Handler {
     }
 }
 
-/// Check whether we should ignore a given path inside of a base directory.
+/// Check whether we should ignore a given path inside of base directories.
 ///
-/// It's ignored if any component below `base` is an ignored filename. Also,
-/// anything outside `base` is also ignored. Both arguments must be provided as
-/// absolute paths.
-fn ignore_path(base: &Path, path: &Path) -> bool {
-    let frag = match path.strip_prefix(base) {
-        Ok(p) => p,
-        Err(_) => return true,
-    };
-    for comp in frag.components() {
-        if let Component::Normal(name) = comp
-            && crate::core::ignore_filename(name)
-        {
-            return true;
+/// Anything outside `bases` is ignored. Inside of the base directories, any
+/// file or directory with an ignored pattern is (recursively) ignored. All
+/// paths must be provided in absolute form.
+fn ignore_path(bases: &[PathBuf], path: &Path) -> bool {
+    for base in bases {
+        let frag = match path.strip_prefix(base) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        for comp in frag.components() {
+            if let Component::Normal(name) = comp
+                && crate::core::ignore_filename(name)
+            {
+                return true;
+            }
         }
+        return false;
     }
-    false
+    true
 }

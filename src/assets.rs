@@ -43,7 +43,7 @@ impl FileList for ContentList {
 
 pub struct Assets<F: FileList> {
     /// The directory path for this set of assets.
-    dir: &'static str,
+    pub dir: &'static str,
 
     /// The names and (possibly) contents of the assets.
     files: F,
@@ -108,7 +108,7 @@ pub type FileAssets = Assets<NameList>;
 #[macro_export]
 macro_rules! embed_assets {
     ($constname:ident, $dirname:literal, [ $($filename:literal),* ]) => {
-        const $constname: $crate::assets::EmbeddedAssets = $crate::assets::EmbeddedAssets::new(
+        pub(crate) const $constname: $crate::assets::EmbeddedAssets = $crate::assets::EmbeddedAssets::new(
             concat!(env!("CARGO_MANIFEST_DIR"), "/", $dirname),
             &[$(
                 (
@@ -124,7 +124,7 @@ macro_rules! embed_assets {
 #[macro_export]
 macro_rules! file_assets {
     ($constname:ident, $dirname:literal, [ $($filename:literal),* ]) => {
-        const $constname: $crate::assets::FileAssets = $crate::assets::FileAssets::new(
+        pub(crate) const $constname: $crate::assets::FileAssets = $crate::assets::FileAssets::new(
             concat!(env!("CARGO_MANIFEST_DIR"), "/", $dirname),
             &[$( $filename, )*],
         );
