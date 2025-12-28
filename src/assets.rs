@@ -65,6 +65,14 @@ impl<F: FileList> Assets<F> {
         }
     }
 
+    /// Read all assets from disk, returning their name and contents.
+    pub fn read_all(&self) -> impl Iterator<Item = (&'static str, std::io::Result<String>)> {
+        self.files.names().map(|name| match self.read(name) {
+            Ok(c) => (name, Ok(c.expect("registered file not found"))),
+            Err(e) => (name, Err(e)),
+        })
+    }
+
     /// Get the embedded contents of a file. If this is a filesystem-only asset
     /// set, this always returns None.
     pub fn get(&self, name: &str) -> Option<&'static str> {

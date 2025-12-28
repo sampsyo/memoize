@@ -25,17 +25,15 @@ impl Context {
         // Register embedded templates, which are available in release mode.
         for (name, source) in TEMPLATES.contents() {
             env.add_template(name, source)
-                .expect("embedded template must be valid Jinja code");
+                .expect("error in embedded template");
         }
 
         // In debug mode only, load templates directly from the filesystem.
         #[cfg(debug_assertions)]
-        env.set_loader(|name| {
-            match TEMPLATES.read(name) {
-                Ok(source) => Ok(source),
-                Err(_) => Ok(None), // TODO maybe propagate error
-            }
-        });
+        for (name, source) in TEMPLATES.read_all() {
+            env.add_template_owned(name, source.expect("error reading template"))
+                .expect("error in loaded template");
+        }
 
         Self {
             src_dir: src_dir.into(),
