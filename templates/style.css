@@ -12,6 +12,7 @@ body {
   --mono-font:
     ui-monospace, SF Mono, "Anonymous Pro", Inconsolata, Consolas,
     "Source Code Pro", Menlo, Monaco, monospace;
+  --mono-size: 13.5px;
 }
 
 main {
@@ -39,7 +40,7 @@ main {
   pre,
   code {
     font-family: var(--mono-font);
-    font-size: 14px;
+    font-size: var(--mono-size);
   }
   code {
     background: rgba(175, 184, 193, 0.2);
@@ -137,6 +138,7 @@ nav {
       &.commit,
       &.path {
         font-family: var(--mono-font);
+        font-size: var(--mono-size);
       }
     }
   }
