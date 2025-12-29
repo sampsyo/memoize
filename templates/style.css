@@ -9,11 +9,18 @@ body {
   --theme-color: rgb(179, 27, 27);
   --faded-color: #666;
   --more-faded-color: #ccc;
+  --mono-font:
+    ui-monospace, SF Mono, "Anonymous Pro", Inconsolata, Consolas,
+    "Source Code Pro", Menlo, Monaco, monospace;
 }
 
 main {
   grid-column: 2;
   grid-row: 1;
+
+  /* Unintuitively, this fixes an issue where <pre> would "expand"
+     the column to be too wide. */
+  min-width: 0;
 
   p,
   ul,
@@ -31,16 +38,7 @@ main {
 
   pre,
   code {
-    font-family:
-      ui-monospace,
-      SF Mono,
-      "Anonymous Pro",
-      Inconsolata,
-      Consolas,
-      "Source Code Pro",
-      Menlo,
-      Monaco,
-      monospace;
+    font-family: var(--mono-font);
     font-size: 14px;
   }
   code {
@@ -125,7 +123,7 @@ nav {
       margin: 0;
 
       &.commit {
-        font-family: monospace;
+        font-family: var(--mono-font);
       }
     }
   }
