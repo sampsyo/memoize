@@ -5,11 +5,11 @@ pub struct WorkPool<T: Send + 'static> {
     tx: Sender<T>,
 }
 
-pub fn run_pool<T, W, B>(thread_count: usize, chan_size: usize, work_fn: W, body_fn: B)
+pub fn run_pool<'scope, T, W, B>(thread_count: usize, chan_size: usize, work_fn: W, body_fn: B)
 where
     T: Send + 'static,
-    W: Fn(T) + Send + Clone + 'static,
-    B: Fn(WorkPool<T>),
+    W: Fn(T) + Send + Clone + 'scope,
+    B: Fn(WorkPool<T>) + 'scope,
 {
     thread::scope(|s| {
         let (tx, rx) = bounded(chan_size);
@@ -53,12 +53,11 @@ mod tests {
     fn simple() {
         let results = HashMap::<u64, bool>::new();
         let res_lock = Arc::new(Mutex::new(results));
-        let res_lock2 = res_lock.clone();
 
         run_pool(
             8,
             32,
-            move |i| {
+            |i| {
                 let p = is_prime(i);
                 let mut r = res_lock.lock().unwrap();
                 r.insert(i, p);
@@ -71,7 +70,7 @@ mod tests {
             },
         );
 
-        let results = res_lock2.lock().unwrap();
+        let results = res_lock.lock().unwrap();
         let mut res_pairs: Vec<_> = results.iter().collect();
         res_pairs.sort();
         assert_eq!(
