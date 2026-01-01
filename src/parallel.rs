@@ -1,11 +1,11 @@
 use crossbeam_channel::{Sender, bounded};
 use std::thread;
 
-pub fn work_pool<'scope, T, W, B>(work_fn: W, body_fn: B)
+pub fn work_pool<'scope, T, W, B, R>(work_fn: W, body_fn: B) -> R
 where
     T: Send + 'static,
     W: Fn(T) + Send + Clone + 'scope,
-    B: Fn(WorkPool<T>) + 'scope,
+    B: (Fn(WorkPool<T>) -> R) + 'scope,
 {
     let threads = thread::available_parallelism()
         .map(|n| n.into())
@@ -13,15 +13,16 @@ where
     work_pool_with_sizes(threads, threads * 2, work_fn, body_fn)
 }
 
-pub fn work_pool_with_sizes<'scope, T, W, B>(
+pub fn work_pool_with_sizes<'scope, T, W, B, R>(
     thread_count: usize,
     chan_size: usize,
     work_fn: W,
     body_fn: B,
-) where
+) -> R
+where
     T: Send + 'static,
     W: Fn(T) + Send + Clone + 'scope,
-    B: Fn(WorkPool<T>) + 'scope,
+    B: (Fn(WorkPool<T>) -> R) + 'scope,
 {
     thread::scope(|s| {
         let (tx, rx) = bounded(chan_size);
@@ -36,8 +37,8 @@ pub fn work_pool_with_sizes<'scope, T, W, B>(
             });
         }
 
-        body_fn(WorkPool { tx });
-    });
+        body_fn(WorkPool { tx })
+    })
 }
 
 pub struct WorkPool<T: Send + 'static> {

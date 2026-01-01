@@ -232,8 +232,6 @@ impl Context {
 
     /// Render all resources in a site to a destination directory.
     pub fn render_site(&self, dest_dir: &Path) -> Result<()> {
-        remove_dir_force(dest_dir)?;
-
         parallel::work_pool(
             |src_path: Box<PathBuf>| {
                 let dest_path = self.note_dest_path(&src_path, dest_dir);
@@ -245,24 +243,23 @@ impl Context {
                 }
             },
             |pool| {
+                remove_dir_force(dest_dir)?;
                 for rsrc in self.read_resources() {
                     match rsrc {
                         Resource::Directory(src_path) => {
-                            fs::create_dir_all(self.dest_path(&src_path, dest_dir)).unwrap(); // TODO
+                            fs::create_dir_all(self.dest_path(&src_path, dest_dir))?;
                         }
                         Resource::Static(src_path) => {
-                            hard_link_or_copy(&src_path, &self.dest_path(&src_path, dest_dir))
-                                .unwrap(); // TODO
+                            hard_link_or_copy(&src_path, &self.dest_path(&src_path, dest_dir))?;
                         }
                         Resource::Note(src_path) => {
                             pool.send(Box::new(src_path));
                         }
                     }
                 }
+                Ok(())
             },
-        );
-
-        Ok(())
+        )
     }
 }
 
