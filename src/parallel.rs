@@ -70,12 +70,9 @@ mod tests {
             },
         );
 
-        let results = res_lock.lock().unwrap();
-        let mut res_pairs: Vec<_> = results.iter().collect();
+        let results = Arc::try_unwrap(res_lock).unwrap().into_inner().unwrap();
+        let mut res_pairs: Vec<_> = results.into_iter().collect();
         res_pairs.sort();
-        assert_eq!(
-            res_pairs,
-            &[(&5, &true), (&10, &false), (&15, &false), (&19, &true)]
-        );
+        assert_eq!(res_pairs, [(5, true), (10, false), (15, false), (19, true)]);
     }
 }
