@@ -232,7 +232,7 @@ impl Context {
 
     /// Render all resources in a site to a destination directory.
     pub fn render_site(&self, dest_dir: &Path) -> Result<()> {
-        parallel::work_pool(|pool| {
+        parallel::scope(|pool| {
             remove_dir_force(dest_dir)?;
 
             for rsrc in self.read_resources() {

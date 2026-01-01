@@ -1,21 +1,28 @@
 use crossbeam_channel::{Sender, bounded};
 use std::{marker::PhantomData, thread};
 
-pub fn work_pool<'scope, F, B, R>(body_fn: B) -> R
+/// Create a thread pool and provide it to a scope that can spawn work.
+///
+/// The thread pool has a number of threads equal to the number of available
+/// hardware threads. The work-item buffer has a size equal to double that.
+pub fn scope<'scope, F, B, R>(body_fn: B) -> R
 where
     F: FnOnce() + Send + 'scope,
-    B: (Fn(WorkPool<F>) -> R) + 'scope,
+    B: (Fn(ThreadPool<F>) -> R) + 'scope,
 {
     let threads = thread::available_parallelism()
         .map(|n| n.into())
         .unwrap_or(1);
-    work_pool_with_sizes(threads, threads * 2, body_fn)
+    scope_with_sizes(threads, threads * 2, body_fn)
 }
 
-pub fn work_pool_with_sizes<'scope, F, B, R>(thread_count: usize, chan_size: usize, body_fn: B) -> R
+/// Create a thread pool with a specified number of threads and buffer slots.
+///
+/// Like `scope` but with fewer defaults.
+pub fn scope_with_sizes<'scope, F, B, R>(thread_count: usize, chan_size: usize, body_fn: B) -> R
 where
     F: FnOnce() + Send + 'scope,
-    B: (Fn(WorkPool<F>) -> R) + 'scope,
+    B: (Fn(ThreadPool<F>) -> R) + 'scope,
 {
     thread::scope(|s| {
         let (tx, rx) = bounded::<F>(chan_size);
@@ -29,14 +36,15 @@ where
             });
         }
 
-        body_fn(WorkPool {
+        body_fn(ThreadPool {
             tx,
             _phantom: PhantomData,
         })
     })
 }
 
-pub struct WorkPool<'scope, F>
+/// A running hread pool that can accept work.
+pub struct ThreadPool<'scope, F>
 where
     F: FnOnce() + Send + 'scope,
 {
@@ -44,7 +52,7 @@ where
     _phantom: PhantomData<&'scope F>,
 }
 
-impl<'scope, F> WorkPool<'scope, F>
+impl<'scope, F> ThreadPool<'scope, F>
 where
     F: FnOnce() + Send + 'scope,
 {
@@ -73,7 +81,7 @@ mod tests {
         let results = HashMap::<u64, bool>::new();
         let res_lock = Arc::new(Mutex::new(results));
 
-        work_pool(|pool| {
+        scope(|pool| {
             for i in [5, 10, 15, 19] {
                 let lock = res_lock.clone();
                 pool.spawn(move || {
