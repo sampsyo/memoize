@@ -11,6 +11,7 @@ walkdir = "2"
 argh = "0.1"
 toml = "0.9"
 serde = { version = "1", features = ["derive"] }
+crossbeam-channel = "0.5"
 
 # For the server.
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs"] }

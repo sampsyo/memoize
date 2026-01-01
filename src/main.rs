@@ -2,12 +2,14 @@ pub mod assets;
 pub mod core;
 pub mod git;
 pub mod markdown;
+pub mod parallel;
 pub mod serve;
 pub mod watch;
 
 use argh::FromArgs;
 use core::{Config, Context};
 use std::io;
+use std::num::NonZero;
 use std::path::Path;
 
 #[derive(FromArgs)]
@@ -37,7 +39,11 @@ enum Command {
 #[derive(FromArgs)]
 /// build the full site
 #[argh(subcommand, name = "build")]
-struct BuildCommand {}
+struct BuildCommand {
+    #[argh(option, short = 'j')]
+    /// number of threads to use for build
+    threads: Option<NonZero<usize>>,
+}
 
 #[derive(FromArgs)]
 /// print a single file from the site
@@ -63,9 +69,9 @@ fn main() {
     let config = Config::load(Path::new(&args.source)).unwrap();
     let ctx = Context::new(&args.source, matches!(args.mode, Command::Serve(_)), config);
     match args.mode {
-        Command::Build(_) => {
+        Command::Build(cmd) => {
             let dest_path = Path::new(&args.dest);
-            ctx.render_site(dest_path).unwrap()
+            ctx.render_site(cmd.threads, dest_path).unwrap()
         }
         Command::Show(cmd) => match ctx.resolve_resource(&cmd.path) {
             Some(rsrc) => {
