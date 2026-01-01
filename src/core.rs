@@ -232,34 +232,33 @@ impl Context {
 
     /// Render all resources in a site to a destination directory.
     pub fn render_site(&self, dest_dir: &Path) -> Result<()> {
-        parallel::work_pool(
-            |src_path: Box<PathBuf>| {
-                let dest_path = self.note_dest_path(&src_path, dest_dir);
-                match self.render_note_to_file(&src_path, &dest_path) {
-                    Ok(_) => (),
-                    Err(e) => {
-                        eprintln!("error rendering note {}: {}", src_path.display(), e)
+        parallel::work_pool(|pool| {
+            remove_dir_force(dest_dir)?;
+
+            for rsrc in self.read_resources() {
+                match rsrc {
+                    Resource::Directory(src_path) => {
+                        fs::create_dir_all(self.dest_path(&src_path, dest_dir))?;
+                    }
+                    Resource::Static(src_path) => {
+                        hard_link_or_copy(&src_path, &self.dest_path(&src_path, dest_dir))?;
+                    }
+                    Resource::Note(src_path) => {
+                        pool.spawn(move || {
+                            let dest_path = self.note_dest_path(&src_path, dest_dir);
+                            match self.render_note_to_file(&src_path, &dest_path) {
+                                Ok(_) => (),
+                                Err(e) => {
+                                    eprintln!("error rendering note {}: {}", src_path.display(), e)
+                                }
+                            }
+                        });
                     }
                 }
-            },
-            |pool| {
-                remove_dir_force(dest_dir)?;
-                for rsrc in self.read_resources() {
-                    match rsrc {
-                        Resource::Directory(src_path) => {
-                            fs::create_dir_all(self.dest_path(&src_path, dest_dir))?;
-                        }
-                        Resource::Static(src_path) => {
-                            hard_link_or_copy(&src_path, &self.dest_path(&src_path, dest_dir))?;
-                        }
-                        Resource::Note(src_path) => {
-                            pool.send(Box::new(src_path));
-                        }
-                    }
-                }
-                Ok(())
-            },
-        )
+            }
+
+            Ok(())
+        })
     }
 }
 
