@@ -1,0 +1,26 @@
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Lint and Test
+    env:
+      RUSTFLAGS: "-Dwarnings"
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - run: cargo check
+    - run: cargo clippy
+    - run: cargo fmt --check
+    - run: cargo test
